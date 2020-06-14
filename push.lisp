@@ -349,8 +349,8 @@
       ((any-value (token value continuation)
          (ecase token
            ((:number :string) (funcall continuation value))
-           ((:true) (funcall continuation t))
-           ((:false) (funcall continuation nil))
+           ((:true) (funcall continuation :true))
+           ((:false) (funcall continuation :false))
            ((:null) (funcall continuation :null))
            ((:open-brace) (object-reader continuation))
            ((:open-bracket) (array-reader continuation))))
@@ -361,8 +361,8 @@
          (ecase token
            ((:end-of-input) (funcall callback :end-of-input) #'top-level)
            ((:number :string) (funcall callback value) #'top-level)
-           ((:true) (funcall callback t) #'top-level)
-           ((:false) (funcall callback nil) #'top-level)
+           ((:true) (funcall callback :true) #'top-level)
+           ((:false) (funcall callback :false) #'top-level)
            ((:null) (funcall callback :null) #'top-level)
            ((:open-brace) (object-reader (lambda (value) (funcall callback value) #'top-level)))
            ((:open-bracket) (array-reader (lambda (value) (funcall callback value) #'top-level)))))
