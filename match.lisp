@@ -164,6 +164,56 @@
 (defun json-null-p (value)
   (eq value :null))
 
+(defun generate-object-constraint-checks (input pattern then-body else-label)
+  (destructuring-bind (required optional rest-var whole-var) (cdr pattern)
+    (setf rest-var (if (ignoredp rest-var) nil rest-var))
+    (setf whole-var (if (ignoredp whole-var) nil whole-var))
+    (let ((work-var (gensym))
+          (restart (gensym))
+          (key-var (gensym))
+          (value-var (gensym))
+          (missing-init (and required (mapcar #'car required)))
+          (missing-var (and required (gensym)))
+          (rest-tail (and rest-var (gensym))))
+      `(if (not (and (consp ,input) (eq (car ,input) :object)))
+           (go ,else-label)
+           (let ((,work-var (cdr ,input))
+                 ,@(when missing-var `((,missing-var ',missing-init)))
+                 ,key-var ,value-var
+                 ,@(when rest-var (list rest-tail)))
+             (tagbody
+                ,restart
+                (if (not ,work-var)
+                    (progn
+                      ,@(when missing-var `((unless (null ,missing-var) (go ,else-label))))
+                      ,@(when whole-var `((setf ,whole-var ,input)))
+                      ,then-body)
+                    (if (or (null (cdr ,work-var)) (not (stringp (car ,work-var))))
+                        (go ,else-label)
+                        (progn
+                          (setf ,key-var (pop ,work-var))
+                          (setf ,value-var (pop ,work-var))
+                          (cond
+                            ,@(loop
+                                 for (key pattern) in required
+                                 collecting `((string= ,key-var ,key)
+                                              ,(generate-pattern-constraint-checks value-var pattern `(progn
+                                                                                                        (setf ,missing-var (remove ,key-var ,missing-var :test #'string=))
+                                                                                                        (go ,restart))
+                                                                                   else-label)))
+                            ,@(loop
+                                 for (key pattern) in optional
+                                 collecting `((string= ,key-var ,key)
+                                              ,(generate-pattern-constraint-checks value-var pattern `(go ,restart)
+                                                                                   else-label)))
+                            ,(if rest-var
+                                 `(t (setf ,rest-tail
+                                           (cdr (if ,rest-var
+                                                    (setf (cdr ,rest-tail) (list ,key-var ,value-var))
+                                                    (setf ,rest-var (list ,key-var ,value-var)))))
+                                     (go ,restart))
+                                 `(t (go ,else-label)))))))))))))
+
 (defun generate-array-constraint-checks (input pattern then-body else-label)
   (destructuring-bind (required optional rest-var whole-var) (cdr pattern)
     (if (not (or required optional))
@@ -198,7 +248,7 @@
                       ,@(loop
                            for sub-pattern in optional
                            as continue = (gensym)
-                           as sub-vars = (list-pattern-variables sub-vars)
+                           as sub-vars = (list-pattern-variables sub-pattern)
                            collecting `(if (not ,work-var)
                                            (progn
                                              ,@(mapcar (lambda (name) `(setf ,name nil)) sub-vars)
@@ -230,57 +280,8 @@
       ((:number) (generate-simple 'numberp (cadr pattern)))
       ((:boolean) (generate-simple 'json-boolean-p (cadr pattern)))
       ((:null) (generate-simple 'json-null-p (cadr pattern)))
-      ((:object)
-       (destructuring-bind (required optional rest-var whole-var) (cdr pattern)
-         (setf rest-var (if (ignoredp rest-var) nil rest-var))
-         (setf whole-var (if (ignoredp whole-var) nil whole-var))
-         (let ((work-var (gensym))
-               (restart (gensym))
-               (key-var (gensym))
-               (value-var (gensym))
-               (missing-init (and required (mapcar #'car required)))
-               (missing-var (and required (gensym)))
-               (rest-tail (and rest-var (gensym))))
-           `(if (not (and (consp ,input) (eq (car ,input) :object)))
-                (go ,else-label)
-                (let ((,work-var (cdr ,input))
-                      ,@(when missing-var `((,missing-var ',missing-init)))
-                      ,key-var ,value-var
-                      ,@(when rest-var (list rest-tail)))
-                  (tagbody
-                     ,restart
-                     (if (not ,work-var)
-                         (progn
-                           ,@(when missing-var `((unless (null ,missing-var) (go ,else-label))))
-                           ,@(when whole-var `((setf ,whole-var ,input)))
-                           ,then-body)
-                         (if (or (null (cdr ,work-var)) (not (stringp (car ,work-var))))
-                             (go ,else-label)
-                             (progn
-                               (setf ,key-var (pop ,work-var))
-                               (setf ,value-var (pop ,work-var))
-                               (cond
-                                 ,@(loop
-                                      for (key pattern) in required
-                                      collecting `((string= ,key-var ,key)
-                                                   ,(generate-pattern-constraint-checks value-var pattern `(progn
-                                                                                                              (setf ,missing-var (remove ,key-var ,missing-var :test #'string=))
-                                                                                                              (go ,restart))
-                                                                                        else-label)))
-                                 ,@(loop
-                                      for (key pattern) in optional
-                                      collecting `((string= ,key-var ,key)
-                                                   ,(generate-pattern-constraint-checks value-var pattern `(go ,restart)
-                                                                                        else-label)))
-                                 ,(if rest-var
-                                       `(t (setf ,rest-tail
-                                                 (cdr (if ,rest-var
-                                                          (setf (cdr ,rest-tail) (list ,key-var ,value-var))
-                                                          (setf ,rest-var (list ,key-var ,value-var)))))
-                                           (go ,restart))
-                                       `(t (go ,else-label)))))))))))))
-      ((:array)
-       (generate-array-constraint-checks input pattern then-body else-label)))))
+      ((:object) (generate-object-constraint-checks input pattern then-body else-label))
+      ((:array) (generate-array-constraint-checks input pattern then-body else-label)))))
 
 (defmacro if-json-bind (pattern form &body body-forms)
   (unless (eql 2 (length body-forms)) (error "malformed body"))
@@ -350,3 +351,8 @@
 
 #-(and)
 (list-pattern-variables (parse-pattern '(:object &optional first ("second" (:number second)) &rest more)))
+
+#-(and)
+(json-match '(:array 1 2 3 4)
+  ((:array &optional _) (print (list 'at-most-one)))
+  ((:array _ _ x &rest _) (print (list 'at-least-three x))))
