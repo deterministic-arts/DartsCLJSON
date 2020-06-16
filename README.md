@@ -53,6 +53,18 @@ stream-based pull parser as well as a push-style parser.
    passing the recognized object as (only) argument. The push parser
    constructs the same kind of objects for its input as the pull parser
    does.
+   
+   Note that the parser is greedy, i.e.,
+   
+       (let ((parser (make-json-push-parser #'print)))
+         (funcall parser "12")
+         (funcall parser "34")
+         (funcall parser nil))
+         
+   prints `1234`, not the two number `12` followed by `34`. Also note,
+   that you have to explicitly specify the end of the input stream by
+   calling the parser with a `nil` argument, since it may hold partially
+   processed input characters internally.
 
 ### Auxiliary Functions And Macros
 
