@@ -31,7 +31,8 @@
   :depends-on ()
   :serial t
   :components ((:file "package")
+               (:file "errors")
                (:file "reader")
-               (:file "writer")
                (:file "push")
-               (:file "match")))
+               (:file "match")
+               (:file "writer")))

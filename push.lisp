@@ -21,7 +21,7 @@
   THE SOFTWARE.
 |#
 
-(in-package "DARTS.LIB.JSON")
+(in-package #:darts.lib.json)
 
 (defun make-utf-8-decoder (callback)
   "Answers a function, which consumes bytes, decodes them as UTF-8 
@@ -59,7 +59,7 @@
            ((= (logand byte #b11100000) #b11000000) 2)
            ((= (logand byte #b11110000) #b11100000) 3)
            ((= (logand byte #b11111000) #b11110000) 4)
-           (t (error "Invalid byte at start of character: 0x~X" byte))))
+           (t (json-parse-error "Invalid byte at start of character: 0x~X" byte))))
        (decode-utf-8-character (bytes group-size &optional (start 0))
          (macrolet ((next-byte ()
                       '(prog1 (elt bytes start)
@@ -68,13 +68,13 @@
                       (let ((b (gensym)))
                         `(let ((,b ,byte))
                            (unless (= (logand ,b #b11000000) #b10000000)
-                             (error "Invalid byte 0x~X inside a character." ,b))
+                             (json-parse-error "Invalid byte 0x~X inside a character." ,b))
                            (ldb (byte 6 0) ,b))))
                     (test-overlong (byte min-size)
                       (let ((b (gensym)))
                         `(let ((,b ,byte))
                            (unless (>= ,b ,min-size)
-                             (error "Overlong byte sequence found."))
+                             (json-parse-error "Overlong byte sequence found."))
                            ,b))))
            (code-char 
             (ecase group-size
@@ -95,7 +95,7 @@
         (if (null sequence)
             (progn
               (unless (zerop missing)
-                (error "incomplete trailing characters: ~S (~D byte~:*~P missing)" unfinished missing))
+                (json-parse-error "incomplete trailing characters: ~S (~D byte~:*~P missing)" unfinished missing))
               (funcall callback nil 0 0))
             (let ((end (or end (length sequence))))
               (loop
@@ -152,7 +152,7 @@
            (funcall callback token value)
            #'top-level-state)
          (report-error (control &rest arguments)
-           (apply #'error control arguments))
+           (apply #'json-parse-error control arguments))
          (top-level-state (char)
            (cond
              ((null char) (report-token :end-of-input))

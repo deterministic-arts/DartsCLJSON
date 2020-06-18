@@ -1,6 +1,6 @@
 #|                                           -*- mode: lisp; coding: utf-8 -*-
   Deterministic Arts -- JSON parsing and rendering
-  Copyright (c) 2014 Dirk Esser
+  Copyright (c) 2020 Dirk Esser
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,20 @@
   THE SOFTWARE.
 |#
 
-(defpackage #:darts.lib.json
-  (:use #:common-lisp)
-  (:export 
-    #:read-json-token #:read-json-value #:read-json-value-from-string
-    #:render-json-null #:render-json-number #:render-json-boolean #:render-json-string
-    #:render-json-array-start #:render-json-array-end #:render-json-object-start
-    #:render-json-object-end #:render-json-key #:render-json-separator
-    #:write-json-null #:write-json-number #:write-json-boolean #:write-json-string
-    #:write-json-key #:writing-json-array #:writing-json-object #:with-json-output-context
-    #:invoke-writing-json-array #:invoke-writing-json-object #:invoke-with-json-output-context
-    #:make-json-push-lexer #:make-json-push-parser #:json-match #:json-ematch
-    #:if-json-bind #:when-json-bind #:json-parse-error #:simple-json-parse-error))
+(in-package #:darts.lib.json)
 
+(define-condition json-parse-error (error) ()
+  (:documentation "Base condition for errors related to JSON parsing. This
+    condition type is used by both, the push and the pull parser."))
+
+(define-condition simple-json-parse-error (simple-condition json-parse-error) ()
+  (:documentation "A variant of the JSON parser error condition, that features
+    a formatted message via the standard mechanism."))
+
+
+(defun json-parse-error (control &rest arguments)
+  (if (null control)
+      (error 'json-parse-error)
+      (error 'simple-json-parse-error
+             :format-control control
+             :format-arguments arguments)))

@@ -166,63 +166,83 @@
 
 (defun generate-object-constraint-checks (input pattern then-body else-label)
   (destructuring-bind (required optional rest-var whole-var) (cdr pattern)
-    (setf rest-var (if (ignoredp rest-var) nil rest-var))
-    (setf whole-var (if (ignoredp whole-var) nil whole-var))
-    (let ((work-var (gensym))
-          (restart (gensym))
-          (key-var (gensym))
-          (value-var (gensym))
-          (missing-init (and required (mapcar #'car required)))
-          (missing-var (and required (gensym)))
-          (rest-tail (and rest-var (gensym))))
-      `(if (not (and (consp ,input) (eq (car ,input) :object)))
-           (go ,else-label)
-           (let ((,work-var (cdr ,input))
-                 ,@(when missing-var `((,missing-var ',missing-init)))
-                 ,key-var ,value-var
-                 ,@(when rest-var (list rest-tail)))
-             (tagbody
-                ,restart
-                (if (not ,work-var)
-                    (progn
-                      ,@(when missing-var `((unless (null ,missing-var) (go ,else-label))))
-                      ,@(when whole-var `((setf ,whole-var ,input)))
-                      ,then-body)
-                    (if (or (null (cdr ,work-var)) (not (stringp (car ,work-var))))
-                        (go ,else-label)
-                        (progn
-                          (setf ,key-var (pop ,work-var))
-                          (setf ,value-var (pop ,work-var))
-                          (cond
-                            ,@(loop
-                                 for (key pattern) in required
-                                 collecting `((string= ,key-var ,key)
-                                              ,(generate-pattern-constraint-checks value-var pattern `(progn
-                                                                                                        (setf ,missing-var (remove ,key-var ,missing-var :test #'string=))
-                                                                                                        (go ,restart))
-                                                                                   else-label)))
-                            ,@(loop
-                                 for (key pattern) in optional
-                                 collecting `((string= ,key-var ,key)
-                                              ,(generate-pattern-constraint-checks value-var pattern `(go ,restart)
-                                                                                   else-label)))
-                            ,(if rest-var
-                                 `(t (setf ,rest-tail
-                                           (cdr (if ,rest-var
-                                                    (setf (cdr ,rest-tail) (list ,key-var ,value-var))
-                                                    (setf ,rest-var (list ,key-var ,value-var)))))
-                                     (go ,restart))
-                                 `(t (go ,else-label)))))))))))))
+    (if (not (or required optional))
+        (if (not rest-var)
+            `(if (and (consp ,input) (eq (car ,input) :object) (null (cdr ,input)))
+                 (progn
+                   ,@(unless (ignoredp whole-var) `((setf ,whole-var ,input)))
+                   ,then-body)
+                 (go ,else-label))
+            `(if (and (consp ,input) (eq (car ,input) :object))
+                 (progn
+                   ,@(unless (ignoredp rest-var) `((setf ,rest-var (cdr ,input))))
+                   ,@(unless (ignoredp whole-var) `((setf ,whole-var ,input)))
+                   ,then-body)
+                 (go ,else-label)))
+        (progn
+          (setf rest-var (if (ignoredp rest-var) nil rest-var))
+          (setf whole-var (if (ignoredp whole-var) nil whole-var))
+          (let ((work-var (gensym))
+                (restart (gensym))
+                (key-var (gensym))
+                (value-var (gensym))
+                (missing-init (and required (mapcar #'car required)))
+                (missing-var (and required (gensym)))
+                (rest-tail (and rest-var (gensym))))
+            `(if (not (and (consp ,input) (eq (car ,input) :object)))
+                 (go ,else-label)
+                 (let ((,work-var (cdr ,input))
+                       ,@(when missing-var `((,missing-var ',missing-init)))
+                       ,key-var ,value-var
+                       ,@(when rest-var (list rest-tail)))
+                   (tagbody
+                      ,restart
+                      (if (not ,work-var)
+                          (progn
+                            ,@(when missing-var `((unless (null ,missing-var) (go ,else-label))))
+                            ,@(when whole-var `((setf ,whole-var ,input)))
+                            ,then-body)
+                          (if (or (null (cdr ,work-var)) (not (stringp (car ,work-var))))
+                              (go ,else-label)
+                              (progn
+                                (setf ,key-var (pop ,work-var))
+                                (setf ,value-var (pop ,work-var))
+                                (cond
+                                  ,@(loop
+                                       for (key pattern) in required
+                                       collecting `((string= ,key-var ,key)
+                                                    ,(generate-pattern-constraint-checks value-var pattern `(progn
+                                                                                                              (setf ,missing-var (remove ,key-var ,missing-var :test #'string=))
+                                                                                                              (go ,restart))
+                                                                                         else-label)))
+                                  ,@(loop
+                                       for (key pattern) in optional
+                                       collecting `((string= ,key-var ,key)
+                                                    ,(generate-pattern-constraint-checks value-var pattern `(go ,restart)
+                                                                                         else-label)))
+                                  ,(if rest-var
+                                       `(t (setf ,rest-tail
+                                                 (cdr (if ,rest-var
+                                                          (setf (cdr ,rest-tail) (list ,key-var ,value-var))
+                                                          (setf ,rest-var (list ,key-var ,value-var)))))
+                                           (go ,restart))
+                                       `(t (go ,else-label)))))))))))))))
 
 (defun generate-array-constraint-checks (input pattern then-body else-label)
   (destructuring-bind (required optional rest-var whole-var) (cdr pattern)
     (if (not (or required optional))
-        `(if (and (consp ,input) (eq (car ,input) :array))
-             (progn
-               ,@(unless (ignoredp rest-var) `((setf ,rest-var (cdr ,input))))
-               ,@(unless (ignoredp whole-var) `((setf ,whole-var ,input)))
-               ,then-body)
-             (go ,else-label))
+        (if (not rest-var)
+            `(if (and (consp ,input) (eq (car ,input) :array) (null (cdr ,input)))
+                 (progn
+                   ,@(unless (ignoredp whole-var) `((setf ,whole-var ,input)))
+                   ,then-body)
+                 (go ,else-label))
+            `(if (and (consp ,input) (eq (car ,input) :array))
+                 (progn
+                   ,@(unless (ignoredp rest-var) `((setf ,rest-var (cdr ,input))))
+                   ,@(unless (ignoredp whole-var) `((setf ,whole-var ,input)))
+                   ,then-body)
+                 (go ,else-label)))
         (progn
           (setf rest-var (if (ignoredp rest-var) nil rest-var))
           (setf whole-var (if (ignoredp whole-var) nil whole-var))

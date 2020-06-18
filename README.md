@@ -18,6 +18,17 @@ callback, when a complete object has been consumed).
 The library provides two parsers for JSON encoded data. A "traditional"
 stream-based pull parser as well as a push-style parser.
 
+ - *Condition* `json-parse-error` 
+ 
+   Class precedence list `json-parse-error`, `error`, `serious-condition`, `condition`
+ 
+   Signalled by both parser types, if the input is not a syntactically
+   well-formed JSON object.
+   
+ - *Condition* `simple-json-parse-error` 
+ 
+   Class precedence list `simple-json-parse-error`, `simple-condition`,  `json-parse-error`, `error`, `serious-condition`, `condition`
+
  - *Function* `read-json-value` _stream_ &rarr; _value_
  
    Reads the next full JSON encoded value from _stream_ and returns
@@ -164,7 +175,10 @@ A pattern (as used in the description above) is one of
     
     > `VAR` 
     
-    is short for `(VAR (:any VAR))`; the `VAR` cannot be `_` in this case . 
+    is short for `(VAR (:any VAR))`; the `VAR` cannot be `_` in this case. If
+    the key is derived from a symbol, the key string is an all-lower-case version
+    of the symbol's print names, with hyphens `-` replaced by underscores `_`.
+    
     The match succeeds, if at least all the fields in the `REQUIRED` section are 
     present, and if the fields in the `OPTIONAL` section match. If `REST` is specified, 
     its value will be a plist of additional key/value pairs for object fields, which 
@@ -174,10 +188,15 @@ A pattern (as used in the description above) is one of
 
 In all of the pattern kinds above, if a variable is named "_" (regardless of
 its home package), then the matching value is not bound to a variable at all;
-the associated constraint is checked, though. 
+the associated constraint is checked, though. Any symbol can be used as pattern
+variable, provided it is not a keyword, and not `nil` or `t`. The effects are
+undefined, if a given pattern includes the same pattern variable multiple times
+(either directly, or as part of one or more sub-patterns.)
 
 Patterns can be abbreviated as follows, if no variables need to be bound:
 
+ - `VAR` is equivalent to `(:any VAR)`; in particular, `_` is equivent to `(:any _)`,
+   which matches any input and binds nothing
  - `:any` is equivalent to `(:any _)`
  - `:string` is equivalent to `(:string _)`
  - `:number` is equivalent to `(:number _)`

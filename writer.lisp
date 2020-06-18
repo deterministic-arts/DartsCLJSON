@@ -21,7 +21,7 @@
   THE SOFTWARE.
 |#
 
-(in-package "DARTS.LIB.JSON")
+(in-package #:darts.lib.json)
 
 ;;; The "render-json-xxx" functions are only concerned with generating
 ;;; syntactically valid output of a certain kind. They do not participate
