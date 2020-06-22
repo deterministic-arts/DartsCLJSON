@@ -115,6 +115,10 @@
                     
 (defun parse-pattern (pattern)
   (cond
+    ((stringp pattern) `(:equal ,pattern))
+    ((numberp pattern) `(:equal ,pattern))
+    ((eq pattern :true) `(:equal :true))
+    ((eq pattern :false) `(:equal :false))
     ((variablep pattern) `(:any ,pattern))
     ((member pattern '(:any :string :boolean :number :null)) `(,pattern _))
     ((eq pattern :object) `(:object nil nil _ nil))
@@ -137,6 +141,7 @@
            (funcall function name)))
        (walk (pattern)
          (ecase (car pattern)
+           ((:equal :true :false))
            ((:any :string :boolean :null :number) (invoke (cadr pattern)))
            ((:array)
             (destructuring-bind (required optional rest-var whole-var) (cdr pattern)
@@ -300,6 +305,7 @@
       ((:number) (generate-simple 'numberp (cadr pattern)))
       ((:boolean) (generate-simple 'json-boolean-p (cadr pattern)))
       ((:null) (generate-simple 'json-null-p (cadr pattern)))
+      ((:equal) `(if (equal ,(cadr pattern) ,input) ,then-body (go ,else-label)))
       ((:object) (generate-object-constraint-checks input pattern then-body else-label))
       ((:array) (generate-array-constraint-checks input pattern then-body else-label)))))
 
@@ -376,3 +382,13 @@
 (json-match '(:array 1 2 3 4)
   ((:array &optional _) (print (list 'at-most-one)))
   ((:array _ _ x &rest _) (print (list 'at-least-three x))))
+
+#-(and)
+(json-match '(:object "type" "response" "identifier" "1" "result" (:object))
+  ((:object ("type" "command") ("command" (:string command)) ("identifier" (:string identifier)) &optional ("argument" (:object &rest _ &whole object)))
+   (print (list 'command command identifier argument)))
+  ((:object ("type" "response") ("identifier" (:string identifier)) &optional ("result" (:object &rest _ &whole result)))
+   (print (list 'response identifier result)))
+  ((:object ("type" "failure") ("identifier" (:string identifier)) ("code" (:string code)) &optional ("detail" (:object &rest _ &whole detail)))
+   (print (list 'failure identifier code detail)))
+  (invalid (error "bad message ~S" invalid)))

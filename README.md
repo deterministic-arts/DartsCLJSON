@@ -150,6 +150,10 @@ macros are defined
 
 A pattern (as used in the description above) is one of
 
+  - a string matches any `equal` string
+  - a number matches any `equal` number
+  - `:true` matches exactly the `:true` keyword
+  - `:false` matches exactly the `:false` keyword
   - `(:any VAR)` matches anything, causing `VAR` to be bound to the matching object
   - `(:string VAR)` matches a string, binding `VAR`
   - `(:number VAR)` matches a number, binding `VAR`
@@ -214,3 +218,12 @@ Examples:
     (json-match '(:array 1 2 3 4)
       ((:array &optional _) (print (list 'at-most-one)))
       ((:array _ _ x &rest _) (print (list 'at-least-three x))))
+      
+    (json-match '(:object "type" "response" "identifier" "1" "result" (:object))
+      ((:object ("type" "command") ("command" (:string command)) ("identifier" (:string identifier)) &optional ("argument" (:object &rest _ &whole object)))
+       (print (list 'command command identifier argument)))
+      ((:object ("type" "response") ("identifier" (:string identifier)) &optional ("result" (:object &rest _ &whole result)))
+       (print (list 'response identifier result)))
+      ((:object ("type" "failure") ("identifier" (:string identifier)) ("code" (:string code)) &optional ("detail" (:object &rest _ &whole detail)))
+       (print (list 'failure identifier code detail)))
+      (invalid (error "bad message ~S" invalid)))
