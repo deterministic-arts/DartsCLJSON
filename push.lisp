@@ -347,25 +347,28 @@
 (defun make-json-push-parser-1 (callback)
   (labels
       ((any-value (token value continuation)
-         (ecase token
+         (case token
            ((:number :string) (funcall continuation value))
            ((:true) (funcall continuation :true))
            ((:false) (funcall continuation :false))
            ((:null) (funcall continuation :null))
            ((:open-brace) (object-reader continuation))
-           ((:open-bracket) (array-reader continuation))))
+           ((:open-bracket) (array-reader continuation))
+           (otherwise (json-parse-error "unexpected token ~S~@[ (~S)~]" token value))))
        (string-value (token value continuation)
-         (ecase token
-           ((:string) (funcall continuation value))))
+         (case token
+           ((:string) (funcall continuation value))
+           (otherwise (json-parse-error "did expect a string literal, got ~S~@[ (~S)~]" token value))))
        (top-level (token value)
-         (ecase token
+         (case token
            ((:end-of-input) (funcall callback :end-of-input) #'top-level)
            ((:number :string) (funcall callback value) #'top-level)
            ((:true) (funcall callback :true) #'top-level)
            ((:false) (funcall callback :false) #'top-level)
            ((:null) (funcall callback :null) #'top-level)
            ((:open-brace) (object-reader (lambda (value) (funcall callback value) #'top-level)))
-           ((:open-bracket) (array-reader (lambda (value) (funcall callback value) #'top-level)))))
+           ((:open-bracket) (array-reader (lambda (value) (funcall callback value) #'top-level)))
+           (otherwise (json-parse-error "unexpected token ~S~@[ (~S)~]" token value))))
        (array-reader (continuation)
          (let ((data nil))
            (labels
@@ -380,9 +383,10 @@
                   (any-value token value #'got-value))
                 (close-or-next (token value)
                   (declare (ignore value))
-                  (ecase token
+                  (case token
                     ((:comma) #'need-value)
-                    ((:close-bracket) (funcall continuation (cons :array (nreverse data)))))))
+                    ((:close-bracket) (funcall continuation (cons :array (nreverse data))))
+                    (otherwise (json-parse-error "did expect ',' or ']' after array element")))))
              #'reader-1)))
        (object-reader (continuation)
          (let ((data nil))
@@ -396,15 +400,17 @@
                   #'need-colon)
                 (need-colon (token value)
                   (declare (ignore value))
-                  (ecase token
-                    ((:colon) #'need-value)))
+                  (case token
+                    ((:colon) #'need-value)
+                    (otherwise (json-parse-error "did expect ':' after field name"))))
                 (need-value (token value)
                   (any-value token value (lambda (object) (push object data) #'close-or-next)))
                 (close-or-next (token value)
                   (declare (ignore value))
-                  (ecase token
+                  (case token
                     ((:comma) #'need-key)
-                    ((:close-brace) (funcall continuation (cons :object (nreverse data))))))
+                    ((:close-brace) (funcall continuation (cons :object (nreverse data))))
+                    (otherwise (json-parse-error "did expect ',' or '}' after field value"))))
                 (need-key (token value)
                   (string-value token value #'got-key)))
              #'reader-1))))
