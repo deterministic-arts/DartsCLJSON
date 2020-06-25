@@ -87,7 +87,7 @@
     (render-string-1 (symbol-name object) stream :start start :end end
                      :ascii-only ascii-only))
   (:method ((object t) stream &key ascii-only)
-    (render-string-1 (with-output-to-string (string) (princ object)) stream
+    (render-string-1 (with-output-to-string (string) (princ object string)) stream
                      :ascii-only ascii-only)))
 
 (defun render-array-start (stream)
