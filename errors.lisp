@@ -23,18 +23,18 @@
 
 (in-package #:darts.lib.json)
 
-(define-condition json-parse-error (error) ()
+(define-condition parse-error (error) ()
   (:documentation "Base condition for errors related to JSON parsing. This
     condition type is used by both, the push and the pull parser."))
 
-(define-condition simple-json-parse-error (simple-condition json-parse-error) ()
+(define-condition simple-parse-error (simple-condition parse-error) ()
   (:documentation "A variant of the JSON parser error condition, that features
     a formatted message via the standard mechanism."))
 
 
-(defun json-parse-error (control &rest arguments)
+(defun parse-error (control &rest arguments)
   (if (null control)
-      (error 'json-parse-error)
-      (error 'simple-json-parse-error
+      (error 'parse-error)
+      (error 'simple-parse-error
              :format-control control
              :format-arguments arguments)))

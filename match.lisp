@@ -29,9 +29,8 @@
 (defun ignoredp (object)
   (or (not object) (string= object "_")))
 
-(defun json-key-string (object)
+(defun key-string (object)
   (if (stringp object) object (substitute #\_ #\- (string-downcase object))))
-
 
 (defun parse-object-bindings (pattern)
   (labels
@@ -62,7 +61,7 @@
                  ((:required :optional)
                   (if (ignoredp element)
                       (error "naked ignored binding in ~S" pattern)
-                      (let ((key (json-key-string element)))
+                      (let ((key (key-string element)))
                         (if (eq state :optional)
                             (push `(,key (:any ,element)) optional)
                             (push `(,key (:any ,element)) required)))))))
@@ -70,7 +69,7 @@
                (ecase state
                  ((:whole :rest :end) (error "misplaced complex pattern binding in ~S" pattern))
                  ((:optional :required)
-                  (let ((key (json-key-string (car element)))
+                  (let ((key (key-string (car element)))
                         (constraint (parse-pattern (cadr element))))
                     (if (eq state :optional)
                         (push `(,key ,constraint) optional)
@@ -164,10 +163,10 @@
     (map-over-pattern-variables (lambda (name) (pushnew name list)) pattern)
     (nreverse list)))
 
-(defun json-boolean-p (value)
+(defun boolean-p (value)
   (or (eq value :true) (eq value :false)))
 
-(defun json-null-p (value)
+(defun null-p (value)
   (eq value :null))
 
 (defun generate-object-constraint-checks (input pattern then-body else-label)
@@ -304,12 +303,12 @@
               ,then-body)))
       ((:string) (generate-simple 'stringp (cadr pattern)))
       ((:number) (generate-simple 'numberp (cadr pattern)))
-      ((:boolean) (generate-simple 'json-boolean-p (cadr pattern)))
+      ((:boolean) (generate-simple 'boolean-p (cadr pattern)))
       ((:equal) `(if (equal ,(cadr pattern) ,input) ,then-body (go ,else-label)))
       ((:object) (generate-object-constraint-checks input pattern then-body else-label))
       ((:array) (generate-array-constraint-checks input pattern then-body else-label)))))
 
-(defmacro if-json-bind (pattern form &body body-forms)
+(defmacro if-bind (pattern form &body body-forms)
   (unless (eql 2 (length body-forms)) (error "malformed body"))
   (let* ((pattern (parse-pattern pattern))
          (variables (list-pattern-variables pattern))
@@ -326,7 +325,7 @@
             ,else
             (return-from ,result ,(cadr body-forms)))))))
 
-(defmacro when-json-bind (pattern form &body body-forms)
+(defmacro when-bind (pattern form &body body-forms)
   (let* ((pattern (parse-pattern pattern))
          (variables (list-pattern-variables pattern))
          (else (gensym))
@@ -341,7 +340,7 @@
                                                    else))
             ,else)))))
 
-(defun expand-json-match (input form otherwise clauses)
+(defun expand-match (input form otherwise clauses)
   (let ((result-block (gensym)))
     `(block ,result-block
        (let ((,input ,form))
@@ -357,35 +356,35 @@
                  collecting else-label)
             ,@otherwise)))))
 
-(defmacro json-ematch (form &body clauses)
+(defmacro ematch (form &body clauses)
   (let ((input (gensym)))
-    (expand-json-match input form `((error "value ~S fell through" ,input))
+    (expand-match input form `((error "value ~S fell through" ,input))
                        clauses)))
 
-(defmacro json-match (form &body clauses)
-  (expand-json-match (gensym) form nil clauses))
+(defmacro match (form &body clauses)
+  (expand-match (gensym) form nil clauses))
 
 
 #-(and)
-(json-ematch '(:array 1 2 3 4 5)
+(ematch '(:array 1 2 3 4 5)
   ((:array fst snd) (list 'binary fst snd))
   ((:array &rest stuff) (cons 'otherwise stuff)))
 
 #-(and)    
-(when-json-bind (:object &optional first ("second" (:number second)) &rest more) '(:object "first" 1 "second" 2 "third" 3)
+(when-bind (:object &optional first ("second" (:number second)) &rest more) '(:object "first" 1 "second" 2 "third" 3)
   (list* first second more))
 
 #-(and)
 (list-pattern-variables (parse-pattern '(:object &optional first ("second" (:number second)) &rest more)))
 
 #-(and)
-(json-match '(:array 1 2 3 4)
+(match '(:array 1 2 3 4)
   ((:array &optional _) (print (list 'at-most-one)))
   ((:array _ _ x &rest _) (print (list 'at-least-three x))))
 
 #-(and)
-(json-match '(:object "type" "response" "identifier" "1" "result" (:object))
-  ((:object ("type" "command") ("command" (:string command)) ("identifier" (:string identifier)) &optional ("argument" (:object &rest _ &whole object)))
+(match '(:object "type" "response" "identifier" "1" "result" (:object))
+  ((:object ("type" "command") ("command" (:string command)) ("identifier" (:string identifier)) &optional ("argument" (:object &rest _ &whole argument)))
    (print (list 'command command identifier argument)))
   ((:object ("type" "response") ("identifier" (:string identifier)) &optional ("result" (:object &rest _ &whole result)))
    (print (list 'response identifier result)))

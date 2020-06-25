@@ -24,7 +24,7 @@
 (in-package #:darts.lib.json)
 
 
-(defun read-json-token (stream)
+(defun read-token (stream)
   "Reads the next JSON token from character stream STREAM. 
 Answers two values. The primary value is a keyword, which
 describes the type of the token read, and the secondary value
@@ -63,7 +63,7 @@ whose type is not yet fully specified..."
             :for expected :across text
             :for actual := (read-character)
             :unless (eql actual expected)
-            :do (json-parse-error "invalid character; expected ~S but got ~S" expected actual)))
+            :do (parse-error "invalid character; expected ~S but got ~S" expected actual)))
        (number-char-class (char)
          (let ((value (digit-char-p char 10)))
            (cond
@@ -129,12 +129,12 @@ whose type is not yet fully specified..."
                       (* sign 
                          (* sign (/ numerator denominator)) 
                          (expt 10 (* esign exponent)))))
-             (otherwise (json-parse-error "unsupported number syntax (~D ~D ~D ~D ~D ~S)" numerator denominator sign esign exponent state)))))
+             (otherwise (parse-error "unsupported number syntax (~D ~D ~D ~D ~D ~S)" numerator denominator sign esign exponent state)))))
        (read-hex-digit ()
          (let* ((char (read-character))
                 (value (digit-char-p char 16)))
            (if (not value)
-               (json-parse-error "invalid character ~S: not a hexadecimal digit" char)
+               (parse-error "invalid character ~S: not a hexadecimal digit" char)
                value)))
        (read-escaped-char ()
          (let* ((d1 (read-hex-digit))
@@ -164,7 +164,7 @@ whose type is not yet fully specified..."
              ((eql char #\b) (vector-push-extend #.(code-char 7) buffer) (read-literal-1 buffer))
              ((eql char #\f) (vector-push-extend #.(code-char 12) buffer) (read-literal-1 buffer))
              ((eql char #\u) (vector-push-extend (read-escaped-char) buffer) (read-literal-1 buffer))
-             (t (json-parse-error "invalid character ~S" char)))))
+             (t (parse-error "invalid character ~S" char)))))
        (read-toplevel (char)
          (cond
            ((not char) (values :eof nil))
@@ -181,11 +181,11 @@ whose type is not yet fully specified..."
            ((eql char #\") (read-character) (read-literal))
            ((eql char #\-) (read-number))
            ((find char "0123456789") (read-number))
-           (t (json-parse-error "invalid character ~S" char)))))
+           (t (parse-error "invalid character ~S" char)))))
     (read-toplevel (peek-character t))))
 
 
-(defun read-json-value (stream)
+(defun read-value (stream)
   "Reads the next available JSON value from character stream
 STREAM and returns it. Returns nil, if the end of the stream
 has been reached.
@@ -208,11 +208,11 @@ but reported as strings instead."
       ((next-token (&optional token value) 
          (if token 
              (values token value)
-             (read-json-token stream)))
+             (read-token stream)))
        (read-value (&key token value eof-ok)
          (multiple-value-bind (token value) (next-token token value)
            (cond
-             ((eq token :eof) (if eof-ok nil (json-parse-error "unexpected end of input")))
+             ((eq token :eof) (if eof-ok nil (parse-error "unexpected end of input")))
              ((eq token :true) :true)
              ((eq token :false) :false)
              ((eq token :null) :null)
@@ -220,7 +220,7 @@ but reported as strings instead."
              ((eq token :string) value)
              ((eq token :begin-array) (read-array))
              ((eq token :begin-object) (read-object))
-             (t (json-parse-error "unexpected token ~S (~S)" token value)))))
+             (t (parse-error "unexpected token ~S (~S)" token value)))))
        (read-array ()
          (multiple-value-bind (token value) (next-token)
            (if (eq token :end-array)
@@ -232,14 +232,14 @@ but reported as strings instead."
            (cond
              ((eq token :end-array) (cons ':array (nreverse list)))
              ((eq token :comma) (read-array-1 (cons (read-value) list)))
-             (t (json-parse-error "unexpected token ~S (~S)" token value)))))
+             (t (parse-error "unexpected token ~S (~S)" token value)))))
        (read-key/value (&optional itoken ivalue)
          (multiple-value-bind (token key) (next-token itoken ivalue)
            (if (not (eq token :string))
-               (json-parse-error "unexpected token ~S (~S)" token key)
+               (parse-error "unexpected token ~S (~S)" token key)
                (multiple-value-bind (token unused) (next-token)
                  (if (not (eq token :colon))
-                     (json-parse-error "unexpected token ~S (~S)" token unused)
+                     (parse-error "unexpected token ~S (~S)" token unused)
                      (let ((value (read-value)))
                        (values key value)))))))
        (read-object ()
@@ -255,11 +255,11 @@ but reported as strings instead."
              ((eq token :comma) 
               (multiple-value-bind (key value) (read-key/value)
                 (read-object-1 (cons value (cons key list)))))
-             (t (json-parse-error "unexpected token ~S (~S)" token value))))))
+             (t (parse-error "unexpected token ~S (~S)" token value))))))
     (read-value :eof-ok t)))
 
 
-(defun read-json-value-from-string (string &optional (start 0) end)
+(defun read-value-from-string (string &optional (start 0) end)
   (with-input-from-string (stream string :start start :end end)
-    (read-json-value stream)))
+    (read-value stream)))
 

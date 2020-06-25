@@ -59,7 +59,7 @@
            ((= (logand byte #b11100000) #b11000000) 2)
            ((= (logand byte #b11110000) #b11100000) 3)
            ((= (logand byte #b11111000) #b11110000) 4)
-           (t (json-parse-error "Invalid byte at start of character: 0x~X" byte))))
+           (t (parse-error "Invalid byte at start of character: 0x~X" byte))))
        (decode-utf-8-character (bytes group-size &optional (start 0))
          (macrolet ((next-byte ()
                       '(prog1 (elt bytes start)
@@ -68,13 +68,13 @@
                       (let ((b (gensym)))
                         `(let ((,b ,byte))
                            (unless (= (logand ,b #b11000000) #b10000000)
-                             (json-parse-error "Invalid byte 0x~X inside a character." ,b))
+                             (parse-error "Invalid byte 0x~X inside a character." ,b))
                            (ldb (byte 6 0) ,b))))
                     (test-overlong (byte min-size)
                       (let ((b (gensym)))
                         `(let ((,b ,byte))
                            (unless (>= ,b ,min-size)
-                             (json-parse-error "Overlong byte sequence found."))
+                             (parse-error "Overlong byte sequence found."))
                            ,b))))
            (code-char 
             (ecase group-size
@@ -95,7 +95,7 @@
         (if (null sequence)
             (progn
               (unless (zerop missing)
-                (json-parse-error "incomplete trailing characters: ~S (~D byte~:*~P missing)" unfinished missing))
+                (parse-error "incomplete trailing characters: ~S (~D byte~:*~P missing)" unfinished missing))
               (funcall callback nil 0 0))
             (let ((end (or end (length sequence))))
               (loop
@@ -128,7 +128,7 @@
 
 
 
-(defun make-json-push-lexer-1 (callback)
+(defun make-push-lexer-1 (callback)
   "Returns a function (here referred to as `lexer'), which has the
    signature
 
@@ -152,7 +152,7 @@
            (funcall callback token value)
            #'top-level-state)
          (report-error (control &rest arguments)
-           (apply #'json-parse-error control arguments))
+           (apply #'parse-error control arguments))
          (top-level-state (char)
            (cond
              ((null char) (report-token :end-of-input))
@@ -338,13 +338,13 @@
         nil))))
 
 
-(defun make-json-push-lexer (callback &key (byte-input nil))
+(defun make-push-lexer (callback &key (byte-input nil))
   (if byte-input
-      (make-utf-8-decoder (make-json-push-lexer-1 callback))
-      (make-json-push-lexer-1 callback)))
+      (make-utf-8-decoder (make-push-lexer-1 callback))
+      (make-push-lexer-1 callback)))
 
 
-(defun make-json-push-parser-1 (callback)
+(defun make-push-parser-1 (callback)
   (labels
       ((any-value (token value continuation)
          (case token
@@ -354,11 +354,11 @@
            ((:null) (funcall continuation :null))
            ((:open-brace) (object-reader continuation))
            ((:open-bracket) (array-reader continuation))
-           (otherwise (json-parse-error "unexpected token ~S~@[ (~S)~]" token value))))
+           (otherwise (parse-error "unexpected token ~S~@[ (~S)~]" token value))))
        (string-value (token value continuation)
          (case token
            ((:string) (funcall continuation value))
-           (otherwise (json-parse-error "did expect a string literal, got ~S~@[ (~S)~]" token value))))
+           (otherwise (parse-error "did expect a string literal, got ~S~@[ (~S)~]" token value))))
        (top-level (token value)
          (case token
            ((:end-of-input) (funcall callback :end-of-input) #'top-level)
@@ -368,7 +368,7 @@
            ((:null) (funcall callback :null) #'top-level)
            ((:open-brace) (object-reader (lambda (value) (funcall callback value) #'top-level)))
            ((:open-bracket) (array-reader (lambda (value) (funcall callback value) #'top-level)))
-           (otherwise (json-parse-error "unexpected token ~S~@[ (~S)~]" token value))))
+           (otherwise (parse-error "unexpected token ~S~@[ (~S)~]" token value))))
        (array-reader (continuation)
          (let ((data nil))
            (labels
@@ -386,7 +386,7 @@
                   (case token
                     ((:comma) #'need-value)
                     ((:close-bracket) (funcall continuation (cons :array (nreverse data))))
-                    (otherwise (json-parse-error "did expect ',' or ']' after array element")))))
+                    (otherwise (parse-error "did expect ',' or ']' after array element")))))
              #'reader-1)))
        (object-reader (continuation)
          (let ((data nil))
@@ -402,7 +402,7 @@
                   (declare (ignore value))
                   (case token
                     ((:colon) #'need-value)
-                    (otherwise (json-parse-error "did expect ':' after field name"))))
+                    (otherwise (parse-error "did expect ':' after field name"))))
                 (need-value (token value)
                   (any-value token value (lambda (object) (push object data) #'close-or-next)))
                 (close-or-next (token value)
@@ -410,7 +410,7 @@
                   (case token
                     ((:comma) #'need-key)
                     ((:close-brace) (funcall continuation (cons :object (nreverse data))))
-                    (otherwise (json-parse-error "did expect ',' or '}' after field value"))))
+                    (otherwise (parse-error "did expect ',' or '}' after field value"))))
                 (need-key (token value)
                   (string-value token value #'got-key)))
              #'reader-1))))
@@ -420,10 +420,10 @@
         nil))))
                   
              
-(defun make-json-push-parser (callback &key (byte-input nil))
+(defun make-push-parser (callback &key (byte-input nil))
   (if byte-input
-      (make-utf-8-decoder (make-json-push-lexer-1 (make-json-push-parser-1 callback)))
-      (make-json-push-lexer-1 (make-json-push-parser-1 callback))))
+      (make-utf-8-decoder (make-push-lexer-1 (make-push-parser-1 callback)))
+      (make-push-lexer-1 (make-push-parser-1 callback))))
            
 
 

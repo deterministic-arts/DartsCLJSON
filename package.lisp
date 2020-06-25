@@ -22,15 +22,15 @@
 |#
 
 (defpackage #:darts.lib.json
+  (:shadow #:parse-error #:write-string)
   (:use #:common-lisp)
   (:export 
-    #:read-json-token #:read-json-value #:read-json-value-from-string
-    #:render-json-null #:render-json-number #:render-json-boolean #:render-json-string
-    #:render-json-array-start #:render-json-array-end #:render-json-object-start
-    #:render-json-object-end #:render-json-key #:render-json-separator
-    #:write-json-null #:write-json-number #:write-json-boolean #:write-json-string
-    #:write-json-key #:writing-json-array #:writing-json-object #:with-json-output-context
-    #:invoke-writing-json-array #:invoke-writing-json-object #:invoke-with-json-output-context
-    #:make-json-push-lexer #:make-json-push-parser #:json-match #:json-ematch
-    #:if-json-bind #:when-json-bind #:json-parse-error #:simple-json-parse-error))
+    #:read-token #:read-value #:read-value-from-string
+    #:render-null #:render-number #:render-boolean #:render-string-1 #:render-string
+    #:render-array-start #:render-array-end #:render-object-start #:render-object-end
+    #:render-key #:render-separator #:write-null #:write-number #:write-boolean
+    #:write-string #:write-key #:writing-array #:writing-object #:with-output-context
+    #:invoke-writing-array #:invoke-writing-object #:invoke-with-output-context
+    #:make-push-lexer #:make-push-parser #:match #:ematch
+    #:if-bind #:when-bind #:parse-error #:simple-parse-error))
 
