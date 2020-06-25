@@ -154,11 +154,11 @@ A pattern (as used in the description above) is one of
   - a number matches any `equal` number
   - `:true` matches exactly the `:true` keyword
   - `:false` matches exactly the `:false` keyword
+  - `:null` matches exactly the `:null` keyword
   - `(:any VAR)` matches anything, causing `VAR` to be bound to the matching object
   - `(:string VAR)` matches a string, binding `VAR`
   - `(:number VAR)` matches a number, binding `VAR`
   - `(:boolean VAR)` matches a (JSON) boolean (:true, :false), binding `VAR`
-  - `(:null VAR)` matches the (JSON) null value :null, binding `VAR`
   - `(:array [REQUIRED ...] [&optional OPTIONAL ...] [&rest REST] [&whole WHOLE])`
  
     Matches a (JSON) array. Each entry of `REQUIRED` and `OPTIONAL` may be another 
@@ -205,7 +205,6 @@ Patterns can be abbreviated as follows, if no variables need to be bound:
  - `:string` is equivalent to `(:string _)`
  - `:number` is equivalent to `(:number _)`
  - `:boolean` is equivalent to `(:boolean _)`
- - `:null` is equivalent to `(:null _)`
  - `:array` is equivalent to `(:array &rest _)`
  - `:object` is equivalent to `(:object &rest _)`
 
